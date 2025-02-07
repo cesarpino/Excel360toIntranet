@@ -4,10 +4,9 @@
 // @version      0.1
 // @description  Rellena viajes a partir el contenido de un excel compartido para usuarios autorizados.
 // @author       César del Pino
-// @match        https://www.google.com/search?q=redirige_viajes*
 // @match        http://viajes.cdti.es/*
+// @match        https://www.google.com/search?q=redirige_viajes*
 // @grant        GM_xmlhttpRequest
-// @grant        GM_openInTab
 // @grant        GM_listValues
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -17,36 +16,48 @@
 // ==/UserScript==
 
 (function() {
-    const AUTH_PARAMETERS={
-        "group_name":"auth_config",
-        "parameter_names":["TENANT_ID","CLIENT_ID","REDIRECT_URI","EXCEL_FILE_ID","SHEET_NAME"]
-    };
-    const USER_PARAMETERS={ 
-        "group_name":"user_config",
-        "parameter_names":["fuerza técnico"]
-    };
-    console.log("get config rul",getConfigURL("http://viajes.cdti.es",AUTH_PARAMETERS));
-    console.log("get config rul",getConfigURL("http://viajes.cdti.es",USER_PARAMETERS));
-    setConfigFromURL(AUTH_PARAMETERS);
-    setConfigFromURL(USER_PARAMETERS);
-
-    const TENANT_ID = getAuthParameter("TENANT_ID"); // or with organization TENANT_ID
-    const CLIENT_ID = getAuthParameter("CLIENT_ID"); // or replace with clientId of app configured in Azure. ex "Acceso a OneDrive desde viajes.cdti.es" en Azure
-    const REDIRECT_URI = getAuthParameter("REDIRECT_URI"); //'https://www.google.com/search?q=redirige_viajes'; // or replace CLIENT_ID como autenticacion>uri de redireccion.
-    const AUTH_URL_BASE = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize`;
-    const SCOPES = ['Files.Read', 'Files.Read.All'].join(' ');
-    const AUTH_URL = `${AUTH_URL_BASE}?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${REDIRECT_URI}&scope=${SCOPES}&response_mode=fragment`;
-
-    // console.log("matches ",GM_info.script.matches);
-    const url = window.location.href;
-    if (url.startsWith(REDIRECT_URI)) {
+    const this_page_url = window.location.href;
+    const WEBAPP_URI = get_match_from_UserScript("http://");
+    const REDIRECT_URI = get_match_from_UserScript("https://");
+    if (this_page_url.startsWith(REDIRECT_URI)) {
         // Se ejecuta solo en dominio en google.com para redirigir el token a viajes.cdti.es
-        let newUrl = `http://viajes.cdti.es/${url.slice(REDIRECT_URI.length)}`;
+        let newUrl = `${WEBAPP_URI}${this_page_url.slice(REDIRECT_URI.length)}`;
         alert("Redirige autorización a "+newUrl);
         window.location.href = newUrl;
         console.error("no debe pasar por aqui");
         return;
     }
+
+    const TENANT_ID = getAuthParameter("TENANT_ID"); // or replace with organization TENANT_ID
+    const CLIENT_ID = getAuthParameter("CLIENT_ID"); // or replace with clientId of app configured in Azure. ex "Acceso a OneDrive desde viajes.cdti.es" en Azure
+    // you must create a Azure app, and get CLIENT_ID and configure same REDIRECT_URI
+    // REDIRECT_URI must be configured also in azure associated with client_id.
+    const AUTH_URL_BASE = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize`;
+    const SCOPES = ['Files.Read', 'Files.Read.All'].join(' ');
+    const AUTH_URL = `${AUTH_URL_BASE}?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${REDIRECT_URI}&scope=${SCOPES}&response_mode=fragment`;
+
+    const AUTH_WEBAPP_PARAMETERS={
+        "group_name":"auth_webapp",
+        "parameter_names":["TENANT_ID","CLIENT_ID"]
+    };
+    const EXCEL_PARAMETERS={
+        "group_name":"excel_config",
+        "parameter_names":["EXCEL_FILE_ID","SHEET_NAME"]
+    };
+    const AUTH_PARAMETERS={
+        "group_name":"auth_config",
+        "parameter_names":["TENANT_ID","CLIENT_ID","EXCEL_FILE_ID","SHEET_NAME"]
+    };
+    const USER_PARAMETERS={
+        "group_name":"user_config",
+        "parameter_names":["fuerza técnico"]
+    };
+    console.log("get config url",getConfigURL(AUTH_WEBAPP_PARAMETERS));
+    console.log("get config url",getConfigURL(EXCEL_PARAMETERS));
+    console.log("get config url",getConfigURL(USER_PARAMETERS));
+    setConfigFromURL(AUTH_WEBAPP_PARAMETERS);
+    setConfigFromURL(EXCEL_PARAMETERS);
+    setConfigFromURL(USER_PARAMETERS);
 
     const EXCEL_FILE_ID = getAuthParameter('EXCEL_FILE_ID'); // ID del archivo de Excel con proyectos de todos los tecnicos
     const SHEET_NAME = getAuthParameter('SHEET_NAME'); // hoja preparada con datos para este script
@@ -507,15 +518,16 @@
         }
         return value;
     }
-    function getConfigURL(baseURL, config_parameters) {
+    function getConfigURL(config_parameters) {
         // takes config and store in local storage
+        const baseURL=WEBAPP_URI;
         const config = {};
         config[config_parameters.group_name]=1;
         config_parameters.parameter_names.forEach(param_name => {
             config[param_name] = GM_getValue(param_name, undefined);
         });
         const queryString = new URLSearchParams(config).toString();
-        const url=  `${baseURL}?${queryString}`;
+        const url= `${baseURL}?${queryString}`;
         console.log("getConfigURL",config, "url",url);
         return url;
     }
@@ -531,6 +543,12 @@
             let config_value = url_params.get(config_variable_name);
             GM_setValue(config_variable_name, config_value); // Guardar el token para futuras solicitudes
         });
+    }
+    function get_match_from_UserScript(http_or_https) {
+        let config_uri=GM_info.script.matches
+        .find(match => match.startsWith(http_or_https))
+        ?.replace(/\*$/, '');
+        return config_uri;
     }
 
     gestor_configuracion();
