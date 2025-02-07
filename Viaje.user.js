@@ -96,6 +96,65 @@
     }
     function fetchMicrosoftGraph(url) {
         console.log("fetchMicrosoftGraph");
+        function avisa_error(errorReported,texto_aviso, alertar=true){
+            let texto_alerta=`${texto_aviso}\nCode: ${errorReported.code}\nMessage: ${errorReported.message}`;
+            if (errorReported.innerError) {
+                texto_alerta+=`\nCódigo interno: ${errorReported.innerError.code}`;
+            }
+            if (alertar) {
+                alert(texto_alerta);
+            }
+
+        }
+        function handleGraphError(response, reject) {
+            try {
+                let errorData = JSON.parse(response.responseText);
+                let errorReported=errorData.error;
+                if (errorReported) {
+                    console.error("Código de error:", errorReported.code);
+                    console.error("Mensaje de error:", errorReported.message);
+
+                    if (errorReported.innerError) {
+                        console.error("Código interno:", errorReported.innerError);
+                        console.error("Código interno:", errorReported.innerError.code);
+                        console.error("ID de solicitud:", errorReported.innerError["request-id"]);
+                        console.error("Fecha:", errorReported.innerError.date);
+                    }
+
+                    // Manejo de errores específicos
+                    switch (errorReported.code) {
+                        case "InvalidAuthenticationToken":
+                        case "unauthorized":
+                            avisa_error(errorReported,"El token de acceso no es válido o ha expirado.");
+                            invalidateToken();
+                            checkAuth(); // Reauthenticate if the token is invalid
+                            reject(new Error(`Error fetching data: ${response.statusText}`));
+                            break;
+                        case "invalidRequest":
+                            avisa_error(errorReported,"invalidRequest. solicitud incorrecta.");
+                            break;
+                        case "badRequest":
+                            if (errorReported.innerError.code === "invalidRange") {
+                                avisa_error(errorReported,"Estás intentando subir datos en un rango inválido o solapado.");
+                            } else {
+                                avisa_error(errorReported,"badRequest. solicitud incorrecta.");
+                            }
+                            break;
+                        case "forbidden":
+                            avisa_error(errorReported,"No tienes permisos suficientes.");
+                            break;
+                        case "notFound":
+                            avisa_error(errorReported,"El archivo o recurso no existe.");
+                            break;
+                        default:
+                            avisa_error(errorReported,"Error desconocido.");
+                    }
+                }
+            } catch (e) {
+                console.error("Error al procesar la respuesta JSON:", e);
+            }
+        }
+
         return new Promise((resolve,reject)=>{
             GM_xmlhttpRequest({
                 method: 'GET',
@@ -104,13 +163,11 @@
                     'Authorization': `Bearer ${accessToken}`
                 },
                 onload: function(response) {
-                    if (response.status === 200) {
-                        console.log('Graph ok:', response);
+                    if (response.status >= 200 && response.status < 300) {
+                        console.log("Graph ok:", response);
                         resolve(response);
                     } else {
-                        reject(new Error(`Error fetching data: ${response.statusText}`));
-                        invalidateToken();
-                        checkAuth(); // Reauthenticate if the token is invalid
+                        handleGraphError(response, reject);
                     }
                 },
                 onerror: function(error) {
