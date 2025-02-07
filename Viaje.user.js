@@ -36,33 +36,23 @@
     const SCOPES = ['Files.Read', 'Files.Read.All'].join(' ');
     const AUTH_URL = `${AUTH_URL_BASE}?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${REDIRECT_URI}&scope=${SCOPES}&response_mode=fragment`;
 
-    const AUTH_WEBAPP_PARAMETERS={
-        "group_name":"auth_webapp",
-        "parameter_names":["TENANT_ID","CLIENT_ID"]
-    };
-    const EXCEL_PARAMETERS={
-        "group_name":"excel_config",
-        "parameter_names":["EXCEL_FILE_ID","SHEET_NAME"]
-    };
-    const AUTH_PARAMETERS={
-        "group_name":"auth_config",
-        "parameter_names":["TENANT_ID","CLIENT_ID","EXCEL_FILE_ID","SHEET_NAME"]
-    };
-    const USER_PARAMETERS={
-        "group_name":"user_config",
-        "parameter_names":["fuerza técnico"]
-    };
-    console.log("get config url",getConfigURL(AUTH_WEBAPP_PARAMETERS));
-    console.log("get config url",getConfigURL(EXCEL_PARAMETERS));
-    console.log("get config url",getConfigURL(USER_PARAMETERS));
-    setConfigFromURL(AUTH_WEBAPP_PARAMETERS);
-    setConfigFromURL(EXCEL_PARAMETERS);
-    setConfigFromURL(USER_PARAMETERS);
+    function get_match_from_UserScript(http_or_https) {
+        let config_uri=GM_info.script.matches
+        .find(match => match.startsWith(http_or_https))
+        ?.replace(/\*$/, '');
+        return config_uri;
+    }
+    function getAuthParameter(param_name) {
+        const value=GM_getValue(param_name, undefined);
+        // console.log("AuthParameter value",param_name, value);
+        if (!value) {
+            alert(`Falta el parametro autorización ${param_name}, solicita al autor la url de autorizacion`);
+            console.error("falta parametro de configuracion ",param_name);
+        }
+        return value;
+    }
 
-    const EXCEL_FILE_ID = getAuthParameter('EXCEL_FILE_ID'); // ID del archivo de Excel con proyectos de todos los tecnicos
-    const SHEET_NAME = getAuthParameter('SHEET_NAME'); // hoja preparada con datos para este script
-    const COLUMN = 'A'; // Reemplaza con la columna que deseas consultar
-
+    let accessToken = getConfig('accessToken', "");
     function getConfig(key, defaultValue) {
         let value = GM_getValue(key, undefined); // recupera clave, valor almacenada en browser
         if (value === undefined) { // Si no existe, la creamos
@@ -71,29 +61,6 @@
         }
         return value;
     }
-
-    let accessToken = getConfig('accessToken', "");
-
-    function authenticate() {
-        // cambia de pagina para solicitar autorización, y aprovechar que el usuario está logado ya en microsoft.
-        window.location.href=AUTH_URL;
-        // GM_openInTab(authUrl, true);  para abrir la app de autenticación en otra pantalla
-    }
-    function invalidateToken(){
-        accessToken=null;
-        GM_setValue('accessToken', accessToken);
-    }
-    function checkAuth() {
-        console.log("checkAuth");
-        if (!accessToken) {
-            console.log("autentificar");
-            authenticate();
-            console.error("no debe pasar por aqui");
-        }
-        console.log("autentificado! access token ", accessToken);
-    }
-
-    // Verificar si hay un token en la URL (flujo implícito)
     function checkForTokenInURL() {
         console.log("checkForTokenInURL");
         const hash = window.location.hash.substring(1);
@@ -107,6 +74,51 @@
             fetchExcelData();
         }
     }
+    function invalidateToken(){
+        accessToken=null;
+        GM_setValue('accessToken', accessToken);
+    }
+    function authenticate() {
+        // cambia de pagina para solicitar autorización, y aprovechar que el usuario está logado ya en microsoft.
+        window.location.href=AUTH_URL;
+        // GM_openInTab(authUrl, true);  para abrir la app de autenticación en otra pantalla
+    }
+    function checkAuth() {
+        console.log("checkAuth");
+        if (!accessToken) {
+            console.log("autentificar");
+            authenticate();
+            console.error("no debe pasar por aqui");
+        }
+        console.log("autentificado! access token ", accessToken);
+    }
+
+    const AUTH_WEBAPP_PARAMETERS={
+        "group_name":"auth_webapp",
+        "parameter_names":["TENANT_ID","CLIENT_ID"]
+    };
+    const EXCEL_PARAMETERS={
+        "group_name":"excel_config",
+        "parameter_names":["EXCEL_FILE_ID","SHEET_NAME","SHEET_RANGE"]
+    };
+    const AUTH_PARAMETERS={
+        "group_name":"auth_config",
+        "parameter_names":["TENANT_ID","CLIENT_ID","EXCEL_FILE_ID","SHEET_NAME","SHEET_RANGE"]
+    };
+    const USER_PARAMETERS={
+        "group_name":"user_config",
+        "parameter_names":["fuerza técnico"]
+    };
+    console.log("get config url",getConfigURL(AUTH_PARAMETERS));
+    console.log("get config url",getConfigURL(USER_PARAMETERS));
+    setConfigFromURL(AUTH_WEBAPP_PARAMETERS);
+    setConfigFromURL(USER_PARAMETERS);
+
+    const EXCEL_FILE_ID = getAuthParameter('EXCEL_FILE_ID'); // ID del archivo de Excel con proyectos de todos los tecnicos
+    const SHEET_NAME = getAuthParameter('SHEET_NAME'); // hoja preparada con datos para este script
+    const SHEET_RANGE = getConfig('SHEET_RANGE','A1:AE10000'); // Reemplaza el rango que deseas consultar
+
+    // Verificar si hay un token en la URL (flujo implícito)
     function fetchMicrosoftGraph(url) {
         console.log("fetchMicrosoftGraph");
         function avisa_error(errorReported,texto_aviso, alertar=true){
@@ -187,6 +199,39 @@
                     reject(new Error(`Error connecting graph: ${error}`));
                 }
             });
+        });
+    };
+    function fetchExcelData() {
+        console.log("fechExcel");
+        const url = `https://graph.microsoft.com/v1.0/me/drive/items/${EXCEL_FILE_ID}/workbook/worksheets/${SHEET_NAME}/range(address='${SHEET_RANGE}')`;
+        fetchMicrosoftGraph(url)
+            .then(response=>{
+            console.log('Data received:', response);
+            const data = JSON.parse(response.responseText);
+            let rows = data.values;
+            let col_names = rows.shift();
+            let sheet = {
+                "rows":rows,
+                "col_names":col_names
+            }
+            console.log("hoja", sheet);
+            // Filtrar las filas correspondientes al técnico
+            let tecnico = getConfig("fuerza técnico", "cdgo");
+            if (! tecnico) {
+                tecnico=$('#ctl00_SheetContentPlaceHolder_UCSolicitante_ddlSolicitante').find('option:selected').val();
+            }
+            console.log("tecnico", tecnico);
+            const index_tecnico=sheet.col_names.indexOf("tecnico");
+            const filteredRows = sheet.rows.filter((row) => row[index_tecnico] === tecnico); //.includes(tecnico));
+            desplegable={
+                "rows":filteredRows,
+                "col_names":col_names
+            };
+            InsertaBuscador();
+            console.log('Desplegable:', desplegable);
+        })
+            .catch(error=>{
+            console.error('Excel Data:', error);
         });
     };
 
@@ -300,7 +345,6 @@
     function desactivaAutocomplete() {
         $('input, textarea, select').attr('autocomplete', 'off');
     }
-
     function InsertaBuscador(){
         const id_buscador_flotante="buscador_flotante";
         if ($("#"+id_buscador_flotante).length) {
@@ -385,39 +429,6 @@
             }
         });
     }
-    function fetchExcelData() {
-        console.log("fechExcel");
-        const url = `https://graph.microsoft.com/v1.0/me/drive/items/${EXCEL_FILE_ID}/workbook/worksheets/${SHEET_NAME}/range(address='${COLUMN}1:AE10000')`;
-        fetchMicrosoftGraph(url)
-            .then(response=>{
-            console.log('Data received:', response);
-            const data = JSON.parse(response.responseText);
-            let rows = data.values;
-            let col_names = rows.shift();
-            let sheet = {
-                "rows":rows,
-                "col_names":col_names
-            }
-            console.log("hoja", sheet);
-            // Filtrar las filas correspondientes al técnico
-            let tecnico = getConfig("fuerza técnico", "cdgo");
-            if (! tecnico) {
-                tecnico=$('#ctl00_SheetContentPlaceHolder_UCSolicitante_ddlSolicitante').find('option:selected').val();
-            }
-            console.log("tecnico", tecnico);
-            const index_tecnico=sheet.col_names.indexOf("tecnico");
-            const filteredRows = sheet.rows.filter((row) => row[index_tecnico] === tecnico); //.includes(tecnico));
-            desplegable={
-                "rows":filteredRows,
-                "col_names":col_names
-            };
-            InsertaBuscador();
-            console.log('Desplegable:', desplegable);
-        })
-            .catch(error=>{
-            console.error('Excel Data:', error);
-        });
-    };
     function gestor_configuracion() {
         let isCollapsed = false; // Estado inicial (expandido)
 
@@ -509,15 +520,6 @@
 
         createUI();
     };
-    function getAuthParameter(param_name) {
-        const value=GM_getValue(param_name, undefined);
-        // console.log("AuthParameter value",param_name, value);
-        if (!value) {
-            alert("Falta un parametro autorización, solicita al autor la url de autorizacion");
-            console.error("falta parametro de configuracion ",param_name);
-        }
-        return value;
-    }
     function getConfigURL(config_parameters) {
         // takes config and store in local storage
         const baseURL=WEBAPP_URI;
@@ -543,12 +545,6 @@
             let config_value = url_params.get(config_variable_name);
             GM_setValue(config_variable_name, config_value); // Guardar el token para futuras solicitudes
         });
-    }
-    function get_match_from_UserScript(http_or_https) {
-        let config_uri=GM_info.script.matches
-        .find(match => match.startsWith(http_or_https))
-        ?.replace(/\*$/, '');
-        return config_uri;
     }
 
     gestor_configuracion();
