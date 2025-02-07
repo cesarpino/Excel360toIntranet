@@ -17,12 +17,14 @@
 // ==/UserScript==
 
 (function() {
-    const AUTH_PARAMETERS={ "group_name":"auth_config",
-                            "parameter_names":["TENANT_ID","CLIENT_ID","REDIRECT_URI","EXCEL_FILE_ID","SHEET_NAME"]
-                          };
-    const USER_PARAMETERS={ "group_name":"user_config",
-                            "parameter_names":["fuerza técnico"]
-                          };
+    const AUTH_PARAMETERS={
+        "group_name":"auth_config",
+        "parameter_names":["TENANT_ID","CLIENT_ID","REDIRECT_URI","EXCEL_FILE_ID","SHEET_NAME"]
+    };
+    const USER_PARAMETERS={ 
+        "group_name":"user_config",
+        "parameter_names":["fuerza técnico"]
+    };
     console.log("get config rul",getConfigURL("http://viajes.cdti.es",AUTH_PARAMETERS));
     console.log("get config rul",getConfigURL("http://viajes.cdti.es",USER_PARAMETERS));
     setConfigFromURL(AUTH_PARAMETERS);
@@ -510,7 +512,7 @@
         const config = {};
         config[config_parameters.group_name]=1;
         config_parameters.parameter_names.forEach(param_name => {
-          config[param_name] = GM_getValue(param_name, undefined);
+            config[param_name] = GM_getValue(param_name, undefined);
         });
         const queryString = new URLSearchParams(config).toString();
         const url=  `${baseURL}?${queryString}`;
@@ -528,7 +530,7 @@
         config_parameters.parameter_names.map(config_variable_name=>{
             let config_value = url_params.get(config_variable_name);
             GM_setValue(config_variable_name, config_value); // Guardar el token para futuras solicitudes
-       });
+        });
     }
 
     gestor_configuracion();
