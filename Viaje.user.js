@@ -236,14 +236,26 @@
         });
     };
     function fetchCalendar(){
-        let fechaActual = new Date().toISOString();
+        function formatearFecha(fechaUTC) {
+            const fecha = new Date(fechaUTC);
+            const opciones = { weekday: 'long', day: 'numeric', month: 'long' };
+            return fecha.toLocaleDateString('es-ES', opciones);
+        }
+        let dias_futuros=100;
+        let fechaActual = new Date();
+
+        let diasDespues = new Date();
+        diasDespues.setDate(fechaActual.getDate() + dias_futuros);
+
         // const apiUrl = "https://graph.microsoft.com/v1.0/me/events?$filter=contains(subject,'idi-20241234')";
-        const apiUrl = `https://graph.microsoft.com/v1.0/me/events?$filter=start/dateTime ge '${fechaActual}' and contains(subject,'viaje')`;
+        // const apiUrl = `https://graph.microsoft.com/v1.0/me/events?$filter=start/dateTime ge '${fechaActual.toISOString()}' and contains(subject,'viaje')`;
+        const apiUrl = `https://graph.microsoft.com/v1.0/me/events?$filter=start/dateTime ge '${fechaActual.toISOString()}' and start/dateTime le '${diasDespues.toISOString()}'`;
 
         fetchMicrosoftGraph(apiUrl)
             .then(response=>{
-            console.log('Calendar Data received:', response);
+            console.log('Calendar response received:', response);
             const data = JSON.parse(response.responseText);
+            console.log('Calendar Data received:', data);
             if (data.value.length > 0) {
                 data.value.forEach(evento => {
                     let titulo = evento.subject;
@@ -252,6 +264,7 @@
 
                     console.log(`Evento: ${titulo}`);
                     console.log(`Fecha: ${fechaInicio} (Zona horaria: ${zonaHoraria})`);
+                    console.log(`Fecha: ${formatearFecha(fechaInicio)}`);
                 });
             } else {
                 console.log("No se encontró el evento.");
