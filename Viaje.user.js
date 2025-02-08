@@ -33,7 +33,7 @@
     // you must create a Azure app, and get CLIENT_ID and configure same REDIRECT_URI
     // REDIRECT_URI must be configured also in azure associated with client_id.
     const AUTH_URL_BASE = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize`;
-    const SCOPES = ['Files.Read', 'Files.Read.All'].join(' ');
+    const SCOPES = ['Files.Read', 'Files.Read.All', 'Calendars.Read'].join(' ');
     const AUTH_URL = `${AUTH_URL_BASE}?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${REDIRECT_URI}&scope=${SCOPES}&response_mode=fragment`;
 
     function get_match_from_UserScript(http_or_https) {
@@ -71,6 +71,7 @@
             accessToken = token;
             GM_setValue('accessToken', token); // Guardar el token para futuras solicitudes
             // window.location.hash = ''; // Limpiar el hash de la URL
+            fetchCalendar();
             fetchExcelData();
         }
     }
@@ -120,7 +121,7 @@
 
     // Verificar si hay un token en la URL (flujo implícito)
     function fetchMicrosoftGraph(url) {
-        console.log("fetchMicrosoftGraph");
+        console.log("fetchMicrosoftGraph",url);
         function avisa_error(errorReported,texto_aviso, alertar=true){
             let texto_alerta=`${texto_aviso}\nCode: ${errorReported.code}\nMessage: ${errorReported.message}`;
             if (errorReported.innerError) {
@@ -234,6 +235,29 @@
             console.error('Excel Data:', error);
         });
     };
+    function fetchCalendar(){
+        let fechaActual = new Date().toISOString();
+        // const apiUrl = "https://graph.microsoft.com/v1.0/me/events?$filter=contains(subject,'idi-20241234')";
+        const apiUrl = `https://graph.microsoft.com/v1.0/me/events?$filter=start/dateTime ge '${fechaActual}' and contains(subject,'viaje')`;
+
+        fetchMicrosoftGraph(apiUrl)
+            .then(response=>{
+            console.log('Calendar Data received:', response);
+            const data = JSON.parse(response.responseText);
+            if (data.value.length > 0) {
+                data.value.forEach(evento => {
+                    let titulo = evento.subject;
+                    let fechaInicio = evento.start.dateTime;
+                    let zonaHoraria = evento.start.timeZone;
+
+                    console.log(`Evento: ${titulo}`);
+                    console.log(`Fecha: ${fechaInicio} (Zona horaria: ${zonaHoraria})`);
+                });
+            } else {
+                console.log("No se encontró el evento.");
+            }
+        })
+    };
 
     let desplegable=[];
     function InsertaActividades_optionValue (optionValue) {
@@ -346,16 +370,19 @@
         $('input, textarea, select').attr('autocomplete', 'off');
     }
     function InsertaBuscador(){
-        const id_buscador_flotante="buscador_flotante";
-        if ($("#"+id_buscador_flotante).length) {
-            return;
+        function estilos(){
+            // Estilos CSS
+            GM_addStyle(`
+        #contenedor_buscador{
+           position: fixed;
+           top: 20px;
+           right: 20px;
+           display: flex;
+           flex-direction: column; /* Cambia a columna */
+           gap: 0px; /* Espacio entre los inputs */
+           z-index: 9999;
         }
-        // Estilos CSS
-        GM_addStyle(`
-        #buscador_flotante {
-            position: fixed;
-            top: 20px;
-            right: 20px;
+        #buscador_excel, #buscador_calendar {
             width: 400px;
             padding: 5px;
             border: 1px solid #ccc;
@@ -363,8 +390,8 @@
             font-size: 12px;
             z-index: 9999;
         }
-        #lista_sugerencias {
-            position: fixed;
+        #lista_sugerencias_excel,
+        #lista_sugerencias_calendar{
             top: 50px;
             right: 20px;
             width: 400px;
@@ -383,51 +410,110 @@
             background-color: #ddd;
         }
         `);
+        }
+        function buscador_calendar(){
+            if ($("#buscador_calendar").length) {
+                return;
+            }
 
-        // Crear la caja de búsqueda en la página
-        $('body').append('<input type="text" id="'+id_buscador_flotante+'" autocomplete="off" placeholder="Letras del proyecto, empresa, provincia, ..">');
-        $('body').append('<div id="lista_sugerencias"></div>');
+            // Crear la caja de búsqueda en la página
+            $('#contenedor_buscador').append('<input type="text" id="buscador_calendar" autocomplete="off" placeholder="Letras del proyecto, empresa, provincia, ..">');
+            $('#contenedor_buscador').append('<div id="lista_sugerencias_calendar"></div>');
 
 
-        // Filtrar y mostrar sugerencias
-        $("#buscador_flotante").on("input", function() {
-            var texto = $(this).val().toLowerCase();
-            $("#lista_sugerencias").empty();
+            // Filtrar y mostrar sugerencias
+            $("#buscador_calendar").on("input", function() {
+                var texto = $(this).val().toLowerCase();
+                $("#lista_sugerencias_calendar").empty();
 
-            if (texto.length > 0) {
-                var resultados = desplegable.rows.filter(item => {
-                    const todos_los_campos=(''+item);
-                    // console.log("todos los campos",todos_los_campos);
-                    return todos_los_campos.toLowerCase().includes(texto)
-                });
-
-                if (resultados.length > 0) {
-                    const index_texto_desplegable=desplegable.col_names.indexOf("texto_desplegable");
-                    resultados.forEach(function(item) {
-                        $("#lista_sugerencias").append("<div class='item'>" + item[index_texto_desplegable] + "</div>");
+                if (texto.length > 0) {
+                    var resultados = desplegable.rows.filter(item => {
+                        const todos_los_campos=(''+item);
+                        // console.log("todos los campos",todos_los_campos);
+                        return todos_los_campos.toLowerCase().includes(texto)
                     });
-                    $("#lista_sugerencias").show();
-                } else {
-                    $("#lista_sugerencias").hide();
-                }
-            } else {
-                $("#lista_sugerencias").hide();
-            }
-        });
-        // Evento para seleccionar un ítem de la lista
-        $(document).on("click", ".item", function() {
-            const texto_desplegable=$(this).text();
-            $("#buscador_flotante").val(texto_desplegable);
-            $("#lista_sugerencias").hide();
-            InsertaProyectoSeleccionado(texto_desplegable);
-        });
 
-        // Ocultar la lista si se hace clic fuera
-        $(document).click(function(e) {
-            if (!$(e.target).closest("#buscador_flotante, #lista_sugerencias").length) {
-                $("#lista_sugerencias").hide();
-            }
-        });
+                    if (resultados.length > 0) {
+                        const index_texto_desplegable=desplegable.col_names.indexOf("texto_desplegable");
+                        resultados.forEach(function(item) {
+                            $("#lista_sugerencias_calendar").append("<div class='item'>" + item[index_texto_desplegable] + "</div>");
+                        });
+                        $("#lista_sugerencias_calendar").show();
+                    } else {
+                        $("#lista_sugerencias_calendar").hide();
+                    }
+                } else {
+                    $("#lista_sugerencias_calendar").hide();
+                }
+            });
+            // Evento para seleccionar un ítem de la lista
+            $(document).on("click", ".item", function() {
+                const texto_desplegable=$(this).text();
+                $("#buscador_calendar").val(texto_desplegable);
+                $("#lista_sugerencias_calendar").hide();
+                InsertaProyectoSeleccionado(texto_desplegable);
+            });
+
+            // Ocultar la lista si se hace clic fuera
+            $(document).click(function(e) {
+                if (!$(e.target).closest("#buscador_calendar, #lista_sugerencias_calendar").length) {
+                    $("#lista_sugerencias_calendar").hide();
+                }
+            });
+        }
+        function buscador_excel(){
+            $('#contenedor_buscador').append('<input type="text" id="buscador_excel" autocomplete="off" placeholder="Letras del proyecto, empresa, provincia, ..">');
+            $('#contenedor_buscador').append('<div id="lista_sugerencias_excel"></div>');
+
+            // Filtrar y mostrar sugerencias
+            $("#buscador_excel").on("input", function() {
+                var texto = $(this).val().toLowerCase();
+                $("#lista_sugerencias_excel").empty();
+
+                if (texto.length > 0) {
+                    var resultados = desplegable.rows.filter(item => {
+                        const todos_los_campos=(''+item);
+                        // console.log("todos los campos",todos_los_campos);
+                        return todos_los_campos.toLowerCase().includes(texto)
+                    });
+
+                    if (resultados.length > 0) {
+                        const index_texto_desplegable=desplegable.col_names.indexOf("texto_desplegable");
+                        resultados.forEach(function(item) {
+                            $("#lista_sugerencias_excel").append("<div class='item'>" + item[index_texto_desplegable] + "</div>");
+                        });
+                        $("#lista_sugerencias_excel").show();
+                    } else {
+                        $("#lista_sugerencias_excel").hide();
+                    }
+                } else {
+                    $("#lista_sugerencias_excel").hide();
+                }
+            });
+            // Evento para seleccionar un ítem de la lista
+            $(document).on("click", ".item", function() {
+                const texto_desplegable=$(this).text();
+                $("#buscador_excel").val(texto_desplegable);
+                $("#lista_sugerencias_excel").hide();
+                InsertaProyectoSeleccionado(texto_desplegable);
+            });
+
+            // Ocultar la lista si se hace clic fuera
+            $(document).click(function(e) {
+                if (!$(e.target).closest("#buscador_excel, #lista_sugerencias_excel").length) {
+                    $("#lista_sugerencias_excel").hide();
+                }
+            });
+        };
+
+        if ($("#contenedor_buscador").length) {
+            return;
+        }
+        // Crear la caja de búsqueda en la página
+        $('body').append('<div id="contenedor_buscador"></div>');
+        estilos();
+        buscador_excel();
+        //buscador_calendar();
     }
     function gestor_configuracion() {
         let isCollapsed = false; // Estado inicial (expandido)
@@ -550,6 +636,7 @@
     gestor_configuracion();
     checkForTokenInURL();
     checkAuth();
+    //fetchCalendar();
     fetchExcelData();
     desactivaAutocomplete();
 
