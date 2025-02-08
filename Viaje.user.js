@@ -224,12 +224,12 @@
             console.log("tecnico", tecnico);
             const index_tecnico=sheet.col_names.indexOf("tecnico");
             const filteredRows = sheet.rows.filter((row) => row[index_tecnico] === tecnico); //.includes(tecnico));
-            desplegable={
+            desplegable_proyectos={
                 "rows":filteredRows,
                 "col_names":col_names
             };
             InsertaBuscador();
-            console.log('Desplegable:', desplegable);
+            console.log('desplegable_proyectos:', desplegable_proyectos);
         })
             .catch(error=>{
             console.error('Excel Data:', error);
@@ -272,7 +272,7 @@
         })
     };
 
-    let desplegable=[];
+    let desplegable_proyectos=[];
     function InsertaActividades_optionValue (optionValue) {
         // $('#ctl00_SheetContentPlaceHolder_UCOtrosDatosActividadesProductos_ddlOrganismosFinanciadores option[value="FE"]').prop('selected', true);
         if (!optionValue) {
@@ -360,13 +360,13 @@
         });
     };
     function InsertaProyectoSeleccionado(texto_desplegable){
-        const index_texto_desplegable=desplegable.col_names.indexOf("texto_desplegable");
-        const filteredRows = desplegable.rows.filter((row) => row[index_texto_desplegable] === texto_desplegable); //.includes(tecnico));
+        const index_texto_desplegable=desplegable_proyectos.col_names.indexOf("texto_desplegable");
+        const filteredRows = desplegable_proyectos.rows.filter((row) => row[index_texto_desplegable] === texto_desplegable); //.includes(tecnico));
         if (filteredRows.length != 1) {
             alert("he encontrado más de un elemento correspondiente a ",texto_desplegable);
             return;
         }
-        const proyecto_seleccionado = Object.fromEntries(desplegable.col_names.map((col, i) => [col, filteredRows[0][i]]));
+        const proyecto_seleccionado = Object.fromEntries(desplegable_proyectos.col_names.map((col, i) => [col, filteredRows[0][i]]));
         console.log("proyecto seleccionado",proyecto_seleccionado);
         InsertaMotivo(proyecto_seleccionado.motivo);
         InsertaOrigen();
@@ -440,14 +440,14 @@
                 $("#lista_sugerencias_calendar").empty();
 
                 if (texto.length > 0) {
-                    var resultados = desplegable.rows.filter(item => {
+                    var resultados = desplegable_proyectos.rows.filter(item => {
                         const todos_los_campos=(''+item);
                         // console.log("todos los campos",todos_los_campos);
                         return todos_los_campos.toLowerCase().includes(texto)
                     });
 
                     if (resultados.length > 0) {
-                        const index_texto_desplegable=desplegable.col_names.indexOf("texto_desplegable");
+                        const index_texto_desplegable=desplegable_proyectos.col_names.indexOf("texto_desplegable");
                         resultados.forEach(function(item) {
                             $("#lista_sugerencias_calendar").append("<div class='item'>" + item[index_texto_desplegable] + "</div>");
                         });
@@ -484,14 +484,14 @@
                 $("#lista_sugerencias_excel").empty();
 
                 if (texto.length > 0) {
-                    var resultados = desplegable.rows.filter(item => {
+                    var resultados = desplegable_proyectos.rows.filter(item => {
                         const todos_los_campos=(''+item);
                         // console.log("todos los campos",todos_los_campos);
                         return todos_los_campos.toLowerCase().includes(texto)
                     });
 
                     if (resultados.length > 0) {
-                        const index_texto_desplegable=desplegable.col_names.indexOf("texto_desplegable");
+                        const index_texto_desplegable=desplegable_proyectos.col_names.indexOf("texto_desplegable");
                         resultados.forEach(function(item) {
                             $("#lista_sugerencias_excel").append("<div class='item'>" + item[index_texto_desplegable] + "</div>");
                         });
