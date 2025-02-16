@@ -11,6 +11,7 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_addStyle
+// @grant        GM_deleteValue
 // @require      https://code.jquery.com/jquery-3.6.0.min.js
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=cdti.es
 // ==/UserScript==
@@ -27,6 +28,14 @@
         console.error("no debe pasar por aqui");
         return;
     }
+
+    const AUTH_WEBAPP_PARAMETERS={
+        "group_name":"auth_webapp",
+        "parameter_names":["TENANT_ID","CLIENT_ID"]
+    };
+    setConfigFromURL(AUTH_WEBAPP_PARAMETERS);
+    console.log("get config url",getConfigURL(AUTH_WEBAPP_PARAMETERS));
+
     const TENANT_ID = getAuthParameter("TENANT_ID"); // or replace with organization TENANT_ID
     const CLIENT_ID = getAuthParameter("CLIENT_ID"); // or replace with clientId of app configured in Azure. ex "Acceso a OneDrive desde viajes.cdti.es" en Azure
     // you must create a Azure app, and get CLIENT_ID and configure same REDIRECT_URI
@@ -93,26 +102,17 @@
         console.log("autentificado! access token ", accessToken);
     }
 
-    const AUTH_WEBAPP_PARAMETERS={
-        "group_name":"auth_webapp",
-        "parameter_names":["TENANT_ID","CLIENT_ID"]
-    };
     const EXCEL_PARAMETERS={
         "group_name":"excel_config",
         "parameter_names":["EXCEL_FILE_ID","SHEET_NAME","SHEET_RANGE"]
-    };
-    const AUTH_PARAMETERS={
-        "group_name":"auth_config",
-        "parameter_names":["TENANT_ID","CLIENT_ID","EXCEL_FILE_ID","SHEET_NAME","SHEET_RANGE"]
     };
     const USER_PARAMETERS={
         "group_name":"user_config",
         "parameter_names":["fuerza técnico","Asunto mail solicitud visita"]
     };
-
-    console.log("get config url",getConfigURL(AUTH_PARAMETERS));
+    console.log("get config url",getConfigURL(EXCEL_PARAMETERS));
     console.log("get config url",getConfigURL(USER_PARAMETERS));
-    setConfigFromURL(AUTH_WEBAPP_PARAMETERS);
+    setConfigFromURL(EXCEL_PARAMETERS);
     setConfigFromURL(USER_PARAMETERS);
 
     const EXCEL_FILE_ID = getAuthParameter('EXCEL_FILE_ID'); // ID del archivo de Excel con proyectos de todos los tecnicos
@@ -844,28 +844,41 @@
         // takes config and store in local storage
         const baseURL=WEBAPP_URI;
         const config = {};
-        config[config_parameters.group_name]=1;
+        config[config_parameters.group_name]="set";
         config_parameters.parameter_names.forEach(param_name => {
             config[param_name] = GM_getValue(param_name, undefined);
         });
         const queryString = new URLSearchParams(config).toString();
         const url= `${baseURL}?${queryString}`;
         console.log("getConfigURL",config, "url",url);
+        console.log("getConfigURL, cambia set por clear_all para borrar todos los parametros");
+
         return url;
     }
     function setConfigFromURL(config_parameters) {
-        console.log("setConfigFromURL");
+        console.log("setConfigFromURL", config_parameters);
+
         const url_params = new URLSearchParams(window.location.search);
         const paramsObj = Object.fromEntries(url_params.entries());
-        if ("1"!=url_params.get(config_parameters.group_name)) {
-            console.log("no es url de config");
-            return;
+        switch (url_params.get(config_parameters.group_name)) {
+            case "clear_all_and_set":
+                alert("se borrará la configuracion");
+                GM_listValues().forEach(key => {
+                    GM_deleteValue(key);
+                });
+                // no break;
+            case "set":
+                config_parameters.parameter_names.map(config_variable_name=>{
+                    let config_value = url_params.get(config_variable_name);
+                    GM_setValue(config_variable_name, config_value); // Guardar el token para futuras solicitudes
+                });
+                break;
+            default:
+                console.log("no es url de config",url_params.get(config_parameters.group_name));
+                break;
         }
-        config_parameters.parameter_names.map(config_variable_name=>{
-            let config_value = url_params.get(config_variable_name);
-            GM_setValue(config_variable_name, config_value); // Guardar el token para futuras solicitudes
-        });
     }
+
     function insertaBotonMiTampermonkey() {
         // añade boton Mi tampermonkey, para que se vea que la pagina está hackeada
         $('body').append('<input type="button" value="Mi Tampermonkey" id="CP">')
