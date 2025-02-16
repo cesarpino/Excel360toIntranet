@@ -27,13 +27,12 @@
         console.error("no debe pasar por aqui");
         return;
     }
-
     const TENANT_ID = getAuthParameter("TENANT_ID"); // or replace with organization TENANT_ID
     const CLIENT_ID = getAuthParameter("CLIENT_ID"); // or replace with clientId of app configured in Azure. ex "Acceso a OneDrive desde viajes.cdti.es" en Azure
     // you must create a Azure app, and get CLIENT_ID and configure same REDIRECT_URI
     // REDIRECT_URI must be configured also in azure associated with client_id.
     const AUTH_URL_BASE = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize`;
-    const SCOPES = ['Files.Read', 'Files.Read.All', 'Calendars.Read'].join(' ');
+    const SCOPES = ['Files.Read', 'Files.Read.All', 'Calendars.Read', 'Mail.Read'].join(' ');
     const AUTH_URL = `${AUTH_URL_BASE}?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${REDIRECT_URI}&scope=${SCOPES}&response_mode=fragment`;
 
     function get_match_from_UserScript(http_or_https) {
@@ -108,8 +107,9 @@
     };
     const USER_PARAMETERS={
         "group_name":"user_config",
-        "parameter_names":["fuerza técnico"]
+        "parameter_names":["fuerza técnico","Asunto mail solicitud visita"]
     };
+
     console.log("get config url",getConfigURL(AUTH_PARAMETERS));
     console.log("get config url",getConfigURL(USER_PARAMETERS));
     setConfigFromURL(AUTH_WEBAPP_PARAMETERS);
@@ -271,6 +271,155 @@
             }
         })
     };
+    function insertaSelectorFechaSalida(){
+        function insertaListaFechas(selector_fecha,opciones){
+            // Opciones de fechas
+
+            let input = $(selector_fecha);
+
+            // Crear el contenedor del desplegable
+            let dropdown = $("<div id='fecha_dropdown' style='position:absolute; background:white; border:1px solid #ccc; padding:5px; width:320px; max-height:180px; overflow-y:auto; z-index:1000; display:none;'></div>");
+
+            // Agregar opciones al desplegable
+            opciones.forEach(opcion => {
+                console.log("opcion añadida",opcion);
+                let item = $("<div style='padding:5px; cursor:pointer; border-bottom:1px solid #eee;'></div>").text(opcion.display);
+                item.on("click", function() {
+                    input.val(opcion.fechaTexto); // Insertar la fecha en el input
+                    dropdown.hide();
+                });
+                dropdown.append(item);
+            });
+
+            // Insertar el dropdown en el DOM
+            $("body").append(dropdown);
+
+            // Mostrar la lista cuando el input recibe foco
+            input.on("focus", function() {
+                let offset = input.offset();
+                let inputWidth = input.outerWidth();
+                let dropdownWidth = dropdown.outerWidth();
+
+                dropdown.css({
+                    top: offset.top + input.outerHeight(),
+                    left: offset.left + inputWidth - dropdownWidth + "px" // Alinear derecha con derecha
+                }).show();
+            });
+
+            // Ocultar el dropdown si se hace clic fuera
+            $(document).on("click", function(e) {
+                if (!input.is(e.target) && !dropdown.is(e.target) && dropdown.has(e.target).length === 0) {
+                    dropdown.hide();
+                }
+            });
+        };
+        function buscaFechasViajeEmail() {
+            const twoMonthsAgo = new Date();
+            twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 5);
+            const fechaFiltro = twoMonthsAgo.toISOString(); // Convierte a formato UTC
+            const mail_visita_empieza_por = getConfig("Asunto mail solicitud visita ", "Confirmación de visita");
+
+            const apiUrl = `https://graph.microsoft.com/v1.0/me/messages?$filter=receivedDateTime ge ${fechaFiltro} and startswith(subject, '${mail_visita_empieza_por}')&$top=50`;
+            let fechas = [];
+
+            fetchMicrosoftGraph(apiUrl)
+                .then(response=>{
+                let data = JSON.parse(response.responseText);
+                let respuestas = data.value.filter(buscaProyectoyFechaEnTexto);
+
+                const fechas_ordenadas=fechas.sort((a, b) => b.fecha - a.fecha);
+
+                console.log("Correos que incluyen fecha:", respuestas);
+                insertaListaFechas(
+                    "#ctl00_SheetContentPlaceHolder_UCTramos_dgTramos_ctl02_txtFechaSalida",
+                    fechas_ordenadas);
+            });
+
+            // Función para convertir las fechas encontradas en formato Date, con ajuste de año
+            function convertirFecha(match, fechaCorreo, campos) {
+                let dia = parseInt(match.groups.dia);
+                let mes = match.groups.mes;
+                let año = match.groups.año ? parseInt(match.groups.año) : null;
+
+                // Si no se proporciona año, se infiere del contexto
+                if (!año) {
+                    let fechaCorreoObj = new Date(fechaCorreo);
+                    año = fechaCorreoObj.getFullYear();
+
+                    // Si el mes de la fecha es enero, febrero, etc., y la fecha del correo es en diciembre, se infiere que es el año siguiente
+                    const mesesQueSonEnElAñoSiguiente = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre"];
+                    if (mesesQueSonEnElAñoSiguiente.includes(mes) && fechaCorreoObj.getMonth() === 11) {
+                        año += 1; // Año siguiente
+                    }
+                }
+
+                // Mapear el mes a su número correspondiente
+                const meses = {
+                    enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
+                    julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11
+                };
+
+                let mesNum = typeof mes === 'number' ? mes - 1 : meses[mes.toLowerCase()];
+                let fecha = new Date(año, mesNum, dia);
+
+                // Asegurarse que la fecha es válida
+                if (fecha.getFullYear() !== año || fecha.getMonth() !== mesNum || fecha.getDate() !== dia) {
+                    return null; // Fecha no válida
+                }
+
+                return fecha;
+            }
+            function formatearFecha(fechaUTC,numerica=true) {
+                const fecha = new Date(fechaUTC);
+                const formato = (numerica?
+                     { day: '2-digit', // Día con dos dígitos (ej. "21")
+                       month: '2-digit', // Mes con dos dígitos (ej. "01")
+                       year: 'numeric' // Año completo (ej. "2025")
+                     }:
+                     { weekday: 'short', day: 'numeric', month: 'short' });
+                return fecha.toLocaleDateString('es-ES', formato);
+            }
+
+            function buscaProyectoyFechaEnTexto(msg){
+                const regexProyecto = /(?<proyecto>\b[A-Z]{3}\-\d{8}\b)/i;
+                let matchProyecto = regexProyecto.exec(msg.subject);
+                if (!matchProyecto) return null;
+                let proyecto = matchProyecto.groups.proyecto;
+                console.log("proyecto :", proyecto);
+
+                const contenido=msg.bodyPreview;
+                const regexFechas = [
+                    {
+                        // Caso: "lunes, 15 de febrero"
+                        regex: /(?<dia_semana>lunes|martes|miércoles|jueves|viernes|sábado|domingo)?,?\s*(?<dia>\d{1,2})\s*(de\s+)?(?<mes>enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?:\s*de\s*(?<año>\d{4}))?/gi,
+                        campos: ['dia_semana', 'dia', 'mes', 'año']
+                    },
+                    {
+                        // Caso: "15/02/2025"
+                        regex: /(?<dia>\d{1,2})[\/\-](?<mes>\d{1,2})[\/\-](?<año>\d{4})/g,
+                        campos: ['dia', 'mes', 'año']
+                    }
+                ];
+
+                for (let { regex, campos } of regexFechas) {
+                    let matches = [...contenido.matchAll(regex)];
+                    matches.forEach(match => {
+                        console.log("match :", match);
+                        let fecha = convertirFecha(match, msg.receivedDateTime, campos);
+                        if (fecha) fechas.push({"fecha":fecha,"fechaTexto":formatearFecha(fecha,true), "proyecto":proyecto, "subject":msg.subject,
+                                                "display":formatearFecha(fecha,false)+", "+msg.subject});
+                    });
+                }
+                if (!fechas) return null;
+
+                console.log("fechas :", fechas);
+
+                return fechas;
+            };
+
+        }
+        buscaFechasViajeEmail();
+    }
 
     let desplegable_proyectos=[];
     function InsertaActividades_optionValue (optionValue) {
@@ -645,6 +794,18 @@
             GM_setValue(config_variable_name, config_value); // Guardar el token para futuras solicitudes
         });
     }
+    function insertaBotonMiTampermonkey() {
+        // añade boton Mi tampermonkey, para que se vea que la pagina está hackeada
+        $('body').append('<input type="button" value="Mi Tampermonkey" id="CP">')
+        $("#CP").css("position", "fixed").css("top", 0).css("left", 0);
+        $('#CP').click(function(){
+            // a veces falla inserta actividades. al picar el boton reintenta
+            console.log("mi tampermonkey. reintento inserta actividades");
+            insertaSelectorFechaSalida();
+            // buscarRespuestasConfirmacion();
+        });
+
+    }
 
     gestor_configuracion();
     checkForTokenInURL();
@@ -652,5 +813,6 @@
     //fetchCalendar();
     fetchExcelData();
     desactivaAutocomplete();
+    insertaBotonMiTampermonkey();
 
 })();
