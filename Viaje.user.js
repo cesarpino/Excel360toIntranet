@@ -435,14 +435,20 @@
             // no añado actividad si ya existe una
             $('#ctl00_SheetContentPlaceHolder_UCOtrosDatosActividadesProductos_btnAnyadirActividad').trigger('click');
         }
+        else {return;}
+        if (this.observerOrganosFinanciadores) {
+            console.error("organos financiadores descactiva antiguo");
+            this.observerOrganosFinanciadores.disconnect();
+            this.observerOrganosFinanciadores=null;
+        }
 
         // https://stackoverflow.com/questions/64712065/how-to-insert-mutationobserver-into-jquery-code
         // Now we watch for new elements
-        const observerOrganosFinanciadores = new MutationObserver(() => {
+        this.observerOrganosFinanciadores = new MutationObserver(() => {
+            console.error("organos financiadores mutó");
             const detActividades='#ctl00_SheetContentPlaceHolder_UCOtrosDatosActividadesProductos_detActividadesProductos_';
             if ($(detActividades+'btnAnyadirProducto').length) {
                 console.log('Aparecio el boton de añadir producto');
-                //$(detActividades+'ddlProductos option:contains("I+D+i COFINANCIADOS POPE 2")').prop('selected', true);
                 $(detActividades+'ddlProductos option[value="'+optionValue+'"]').prop('selected', true);
                 // TODO comprobar si optionValue se ha seleccionado
                 $(detActividades+'txtPorcentajeProducto').attr('value',100);
@@ -455,11 +461,14 @@
             }
             if ($(detActividades+'gvProductosOrgPresupCCostes_ctl02_btnEditarFila').length) {
                 $(detActividades+'btnGuardar').trigger('click');
-                observerOrganosFinanciadores.disconnect();
+                console.error("organos financiadores. Dejo de observar");
+                this.observerOrganosFinanciadores.disconnect();
+                this.observerOrganosFinanciadores=null;
                 beep();
             }
         });
-        observerOrganosFinanciadores.observe(document.getElementById('ctl00_SheetContentPlaceHolder_UCOtrosDatosActividadesProductos_updOtrosDatos'), {
+        console.error("organos financiadores. instala observador");
+        this.observerOrganosFinanciadores.observe(document.getElementById('ctl00_SheetContentPlaceHolder_UCOtrosDatosActividadesProductos_updOtrosDatos'), {
             childList: true,
             subtree: true
         });
