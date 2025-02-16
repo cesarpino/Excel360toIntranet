@@ -603,6 +603,40 @@
     function desactivaAutocomplete() {
         $('input, textarea, select').attr('autocomplete', 'off');
     }
+    function retocaLayout() {
+        // console.error('***** retocaLayout');
+        const targetNode = document.getElementById(
+            'ctl00_UpdatePanel1');
+        // Configura el MutationObserver
+        function corrigeAspecto(){
+            // console.error('***** corrigeAspecto');
+            // organos financiadores tiene colspan3, y al añadir la modificación de adjuntar archivo, no se amplió a colspan 4.
+            $('td[colspan="3"]', targetNode).attr('colspan', '4');
+
+            // amplia cuadro de texto de motivo
+            $('#ctl00_SheetContentPlaceHolder_UCDGViajes_txtMotivo')
+                .css('width', '750px')
+                .css('height', '80px')
+        }
+        const observer = new MutationObserver(function (mutationsList, observer) {
+            // console.error('***** hay mutacion');
+            corrigeAspecto();
+        });
+
+        const config = {
+            childList: true,    // Monitoriza cambios en los hijos directos del nodo
+            subtree: true      // Monitoriza cambios en el subárbol completo
+        };
+
+        // Inicia la observación
+        if (targetNode) {
+            // console.error('***** inicia la observacion');
+            corrigeAspecto();
+            observer.observe(targetNode, config);
+        } else {
+            console.error('El elemento no fue encontrado.');
+        }
+    }
     function InsertaBuscador(){
         function estilos(){
             // Estilos CSS
@@ -886,6 +920,7 @@
         $('#CP').click(function(){
             // a veces falla inserta actividades. al picar el boton reintenta
             console.log("mi tampermonkey. reintento inserta actividades");
+            retocaLayout();
             insertaSelectorFechaSalida();
             // buscarRespuestasConfirmacion();
         });
@@ -895,6 +930,7 @@
     gestor_configuracion();
     checkForTokenInURL();
     checkAuth();
+    retocaLayout();
     //fetchCalendar();
     fetchExcelData();
     desactivaAutocomplete();
