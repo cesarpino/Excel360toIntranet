@@ -517,6 +517,53 @@
             return value + motivo +"\n";
         });
     };
+    function inserta_proyecto_nuevo(match_groups) {
+        function prefijo_proyecto_nuevo() {
+            // busco en la lista de proyectos el que no tenga el año relleno
+            const proyecto_vacio=$('input[id^="ctl00_SheetContentPlaceHolder_UCProyectos_gvProyectos"][id$="txtAnioProy"]').filter(function() { return this.value == ""; });
+            var result="";
+            if (proyecto_vacio.length) {
+                const match=/(?<prefijo>.*)txtAnioProy/.exec(proyecto_vacio.attr("id"));
+                result = match.groups.prefijo;
+            }
+            console.log("prefijo_proyecto_nuevo",result);
+            return result;
+        }
+        function insertaIDI_hueco(match_groups, prefijoProyecto) {
+            console.log("insertaIDI_hueco");
+            if (! ["area","anioProy","numProy","hito"].every(key => key in match_groups)) {
+                console.error("falta algun dato en ",match_groups);
+                return;
+            };
+            $("#"+prefijoProyecto+'ddlAreas option[value="'+match_groups.area+'"]').prop('selected', true);
+            $("#"+prefijoProyecto+'txtAnioProy').attr('value',match_groups.anioProy);
+            $("#"+prefijoProyecto+'txtNumProy').attr('value',match_groups.numProy);
+            $("#"+prefijoProyecto+'txtHito').attr('value',match_groups.hito);
+        }
+
+        console.log("inserta_proyecto_nuevo",match_groups);
+        var prefijo_nuevo=prefijo_proyecto_nuevo();
+        if (prefijo_nuevo!="") {
+            insertaIDI_hueco(match_groups, prefijo_nuevo);
+        } else {
+            const observerProyectos = new MutationObserver(() => {
+                console.log("observerProyectos");
+                prefijo_nuevo=prefijo_proyecto_nuevo();
+                if (prefijo_nuevo!="") {
+                    insertaIDI_hueco(match_groups, prefijo_nuevo);
+                    observerProyectos.disconnect();
+                }
+            });
+            //no funciona con 'ctl00_SheetContentPlaceHolder_UCProyectos_gvProyectos'
+            observerProyectos.observe(document.getElementById('contenedor'), {
+                childList: true,
+                subtree: true
+            });
+            console.log("click nuevo proyecto");
+            $('#ctl00_SheetContentPlaceHolder_UCProyectos_gvProyectos_ctl01_imgAddProyecto').trigger('click');
+        }
+    }
+
     function InsertaProyectoSeleccionado(texto_desplegable){
         const index_texto_desplegable=desplegable_proyectos.col_names.indexOf("texto_desplegable");
         const filteredRows = desplegable_proyectos.rows.filter((row) => row[index_texto_desplegable] === texto_desplegable); //.includes(tecnico));
@@ -529,7 +576,23 @@
         InsertaMotivo(proyecto_seleccionado.motivo);
         InsertaOrigen();
         InsertaDestino(proyecto_seleccionado.provincia_desa,proyecto_seleccionado.localidad_desa);
-        InsertaActividades_optionValue(proyecto_seleccionado.tipo_a_desplegable_id_desplegable)
+        console.error("proyecto_seleccionado", proyecto_seleccionado);
+
+        let match=/(?<area>\w+)\-(?<anioProy>\d{4})(?<numProy>\d{4})/.exec(proyecto_seleccionado.proyecto);
+        if (!match) {
+            console.error(`no reconozco el proyecto {proyecto_seleccionado.proyecto}` );
+            return;
+        }
+        inserta_proyecto_nuevo({
+            area: match.groups.area,
+            anioProy: match.groups.anioProy,
+            numProy: match.groups.numProy,
+            hito: proyecto_seleccionado.hito_viaje
+        });
+        setTimeout(function() {
+            InsertaActividades_optionValue(proyecto_seleccionado.tipo_a_desplegable_id_desplegable);
+        }, 4000);
+
     };
     function beep() {
         (new
