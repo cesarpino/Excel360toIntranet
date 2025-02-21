@@ -47,7 +47,7 @@
     function get_match_from_UserScript(http_or_https) {
         let config_uri=GM_info.script.matches
         .find(match => match.startsWith(http_or_https))
-        ?.replace(/\*$/, '');
+        ?.replace(/\*$/, ''); // le quito la estrella del final @match
         return config_uri;
     }
     function getAuthParameter(param_name) {
@@ -372,11 +372,11 @@
             function formatearFecha(fechaUTC,numerica=true) {
                 const fecha = new Date(fechaUTC);
                 const formato = (numerica?
-                     { day: '2-digit', // Día con dos dígitos (ej. "21")
-                       month: '2-digit', // Mes con dos dígitos (ej. "01")
-                       year: 'numeric' // Año completo (ej. "2025")
-                     }:
-                     { weekday: 'short', day: 'numeric', month: 'short' });
+                                 { day: '2-digit', // Día con dos dígitos (ej. "21")
+                                  month: '2-digit', // Mes con dos dígitos (ej. "01")
+                                  year: 'numeric' // Año completo (ej. "2025")
+                                 }:
+                                 { weekday: 'short', day: 'numeric', month: 'short' });
                 return fecha.toLocaleDateString('es-ES', formato);
             }
 
@@ -853,7 +853,7 @@
                 <button id="save_${key}" style="background: green; color: white; border: none; padding: 2px 5px; margin-left: 5px;">✔️</button>
                 <br><br>
             `;
-            });
+                });
 
             html += `</div>`;
             container.innerHTML = html;
