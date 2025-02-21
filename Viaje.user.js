@@ -473,6 +473,17 @@
             subtree: true
         });
     }
+    function InsertaHorasyTransportePreferido(){
+        if ($('#ctl00_SheetContentPlaceHolder_UCTramos_dgTramos_ctl02_txtHoraSalida').val()=="") {
+            $('#ctl00_SheetContentPlaceHolder_UCTramos_dgTramos_ctl02_txtHoraSalida').attr('value','06:00');
+        }
+        if ($('#ctl00_SheetContentPlaceHolder_UCTramos_dgTramos_ctl02_txtHoraLlegada').val()=="") {
+            $('#ctl00_SheetContentPlaceHolder_UCTramos_dgTramos_ctl02_txtHoraLlegada').attr('value','20:00');
+        }
+        if ($('#ctl00_SheetContentPlaceHolder_UCTramos_dgTramos_ctl02_ddlLocomocion option[value="-"]').is(':selected')) {
+            $('#ctl00_SheetContentPlaceHolder_UCTramos_dgTramos_ctl02_ddlLocomocion option[value="TR"]').prop('selected', true);
+        }
+    }
     function InsertaDestino(provincia,poblacion) {
         const destino=(poblacion==provincia
                        ? provincia
@@ -576,6 +587,7 @@
         InsertaMotivo(proyecto_seleccionado.motivo);
         InsertaOrigen();
         InsertaDestino(proyecto_seleccionado.provincia_desa,proyecto_seleccionado.localidad_desa);
+        InsertaHorasyTransportePreferido();
         console.error("proyecto_seleccionado", proyecto_seleccionado);
 
         let match=/(?<area>\w+)\-(?<anioProy>\d{4})(?<numProy>\d{4})/.exec(proyecto_seleccionado.proyecto);
