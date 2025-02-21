@@ -17,6 +17,8 @@
 // ==/UserScript==
 
 (function() {
+    'use strict';
+
     const this_page_url = window.location.href;
     const WEBAPP_URI = get_match_from_UserScript("http://");
     const REDIRECT_URI = get_match_from_UserScript("https://");
@@ -33,11 +35,9 @@
         "group_name":"auth_webapp",
         "parameter_names":["TENANT_ID","CLIENT_ID"]
     };
-    setConfigFromURL(AUTH_WEBAPP_PARAMETERS);
-    console.log("get config url",getConfigURL(AUTH_WEBAPP_PARAMETERS));
 
-    const TENANT_ID = getAuthParameter("TENANT_ID"); // or replace with organization TENANT_ID
-    const CLIENT_ID = getAuthParameter("CLIENT_ID"); // or replace with clientId of app configured in Azure. ex "Acceso a OneDrive desde viajes.cdti.es" en Azure
+    const TENANT_ID = getConfigFromSet(AUTH_WEBAPP_PARAMETERS,"TENANT_ID"); // or replace with organization TENANT_ID
+    const CLIENT_ID = getConfigFromSet(AUTH_WEBAPP_PARAMETERS,"CLIENT_ID"); // or replace with clientId of app configured in Azure. ex "Acceso a OneDrive desde viajes.cdti.es" en Azure
     // you must create a Azure app, and get CLIENT_ID and configure same REDIRECT_URI
     // REDIRECT_URI must be configured also in azure associated with client_id.
     const AUTH_URL_BASE = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize`;
@@ -50,12 +50,55 @@
         ?.replace(/\*$/, ''); // le quito la estrella del final @match
         return config_uri;
     }
-    function getAuthParameter(param_name) {
+    function getConfigFromSet(param_set, param_name) {
+        function setConfigFromURL(config_parameters) {
+            console.log("setConfigFromURL", config_parameters);
+
+            const url_params = new URLSearchParams(window.location.search);
+            const paramsObj = Object.fromEntries(url_params.entries());
+            switch (url_params.get(config_parameters.group_name)) {
+                case "clear_all_and_set":
+                    alert("se borrará la configuracion");
+                    GM_listValues().forEach(key => {
+                        GM_deleteValue(key);
+                    });
+                    // no break;
+                case "set":
+                    config_parameters.parameter_names.map(config_variable_name=>{
+                        let config_value = url_params.get(config_variable_name);
+                        GM_setValue(config_variable_name, config_value); // Guardar el token para futuras solicitudes
+                    });
+                    break;
+                default:
+                    console.log("no es url de config",url_params.get(config_parameters.group_name));
+                    break;
+            }
+        }
+        function getConfigURL(config_parameters) {
+            // takes config and store in local storage
+            const baseURL=WEBAPP_URI;
+            const config = {};
+            config[config_parameters.group_name]="set";
+            config_parameters.parameter_names.forEach(param_name => {
+                config[param_name] = GM_getValue(param_name, undefined);
+            });
+            const queryString = new URLSearchParams(config).toString();
+            const url= `${baseURL}?${queryString}`;
+            console.log("getConfigURL",config, "url",url);
+            console.log("getConfigURL, cambia set por clear_all para borrar todos los parametros");
+
+            return url;
+        }
+
+        setConfigFromURL(param_set);
+
         const value=GM_getValue(param_name, undefined);
         // console.log("AuthParameter value",param_name, value);
         if (!value) {
-            alert(`Falta el parametro autorización ${param_name}, solicita al autor la url de autorizacion`);
-            console.error("falta parametro de configuracion ",param_name);
+            const configURL=getConfigURL(param_set);
+            const error_text=`Falta el parametro de configuración ${param_name}, solicita al autor la url de autorizacion de la forma ${configURL}`;
+            console.error(error_text);
+            alert(error_text);
         }
         return value;
     }
@@ -71,6 +114,7 @@
     }
     function checkForTokenInURL() {
         console.log("checkForTokenInURL");
+        console.log("called from",document.referrer);
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
         const token = params.get('access_token');
@@ -110,14 +154,10 @@
         "group_name":"user_config",
         "parameter_names":["fuerza técnico","Asunto mail solicitud visita"]
     };
-    console.log("get config url",getConfigURL(EXCEL_PARAMETERS));
-    console.log("get config url",getConfigURL(USER_PARAMETERS));
-    setConfigFromURL(EXCEL_PARAMETERS);
-    setConfigFromURL(USER_PARAMETERS);
 
-    const EXCEL_FILE_ID = getAuthParameter('EXCEL_FILE_ID'); // ID del archivo de Excel con proyectos de todos los tecnicos
-    const SHEET_NAME = getAuthParameter('SHEET_NAME'); // hoja preparada con datos para este script
-    const SHEET_RANGE = getConfig('SHEET_RANGE','A1:AE10000'); // Reemplaza el rango que deseas consultar
+    const EXCEL_FILE_ID = getConfigFromSet(EXCEL_PARAMETERS,'EXCEL_FILE_ID'); // ID del archivo de Excel con proyectos de todos los tecnicos
+    const SHEET_NAME = getConfigFromSet(EXCEL_PARAMETERS,'SHEET_NAME'); // hoja preparada con datos para este script
+    const SHEET_RANGE = getConfigFromSet(EXCEL_PARAMETERS,'SHEET_RANGE'); // Reemplaza el rango que deseas consultar
 
     // Verificar si hay un token en la URL (flujo implícito)
     function fetchMicrosoftGraph(url) {
@@ -886,45 +926,6 @@
 
         createUI();
     };
-    function getConfigURL(config_parameters) {
-        // takes config and store in local storage
-        const baseURL=WEBAPP_URI;
-        const config = {};
-        config[config_parameters.group_name]="set";
-        config_parameters.parameter_names.forEach(param_name => {
-            config[param_name] = GM_getValue(param_name, undefined);
-        });
-        const queryString = new URLSearchParams(config).toString();
-        const url= `${baseURL}?${queryString}`;
-        console.log("getConfigURL",config, "url",url);
-        console.log("getConfigURL, cambia set por clear_all para borrar todos los parametros");
-
-        return url;
-    }
-    function setConfigFromURL(config_parameters) {
-        console.log("setConfigFromURL", config_parameters);
-
-        const url_params = new URLSearchParams(window.location.search);
-        const paramsObj = Object.fromEntries(url_params.entries());
-        switch (url_params.get(config_parameters.group_name)) {
-            case "clear_all_and_set":
-                alert("se borrará la configuracion");
-                GM_listValues().forEach(key => {
-                    GM_deleteValue(key);
-                });
-                // no break;
-            case "set":
-                config_parameters.parameter_names.map(config_variable_name=>{
-                    let config_value = url_params.get(config_variable_name);
-                    GM_setValue(config_variable_name, config_value); // Guardar el token para futuras solicitudes
-                });
-                break;
-            default:
-                console.log("no es url de config",url_params.get(config_parameters.group_name));
-                break;
-        }
-    }
-
     function insertaBotonMiTampermonkey() {
         // añade boton Mi tampermonkey, para que se vea que la pagina está hackeada
         $('body').append('<input type="button" value="Mi Tampermonkey" id="CP">')
