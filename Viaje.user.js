@@ -19,6 +19,7 @@
 (function() {
     'use strict';
 
+    // WEBAPP token purchase stuff
     const this_page_url = window.location.href;
     const WEBAPP_URI = get_match_from_UserScript("http://");
     const REDIRECT_URI = get_match_from_UserScript("https://");
@@ -149,21 +150,6 @@
         }
         console.log("autentificado! access token ", accessToken);
     }
-
-    const EXCEL_PARAMETERS={
-        "group_name":"excel_config",
-        "parameter_names":["EXCEL_FILE_ID","SHEET_NAME","SHEET_RANGE"]
-    };
-    const USER_PARAMETERS={
-        "group_name":"user_config",
-        "parameter_names":["fuerza técnico","Asunto mail solicitud visita"]
-    };
-
-    const EXCEL_FILE_ID = getConfigFromSet(EXCEL_PARAMETERS,'EXCEL_FILE_ID'); // ID del archivo de Excel con proyectos de todos los tecnicos
-    const SHEET_NAME = getConfigFromSet(EXCEL_PARAMETERS,'SHEET_NAME'); // hoja preparada con datos para este script
-    const SHEET_RANGE = getConfigFromSet(EXCEL_PARAMETERS,'SHEET_RANGE'); // Reemplaza el rango que deseas consultar
-
-    // Verificar si hay un token en la URL (flujo implícito)
     function fetchMicrosoftGraph(url) {
         console.log("fetchMicrosoftGraph",url);
         function avisa_error(errorReported,texto_aviso, alertar=true){
@@ -246,7 +232,22 @@
             });
         });
     };
-    function fetchExcelData() {
+
+    // WEBAPP specific once token obtained.
+    const EXCEL_PARAMETERS={
+        "group_name":"excel_config",
+        "parameter_names":["EXCEL_FILE_ID","SHEET_NAME","SHEET_RANGE"]
+    };
+    const USER_PARAMETERS={
+        "group_name":"user_config",
+        "parameter_names":["fuerza técnico","Asunto mail solicitud visita"]
+    };
+
+    const EXCEL_FILE_ID = getConfigFromSet(EXCEL_PARAMETERS,'EXCEL_FILE_ID'); // ID del archivo de Excel con proyectos de todos los tecnicos
+    const SHEET_NAME = getConfigFromSet(EXCEL_PARAMETERS,'SHEET_NAME'); // hoja preparada con datos para este script
+    const SHEET_RANGE = getConfigFromSet(EXCEL_PARAMETERS,'SHEET_RANGE'); // Reemplaza el rango que deseas consultar
+
+    function fetchMyExcelData() {
         console.log("fechExcel");
         const url = `https://graph.microsoft.com/v1.0/me/drive/items/${EXCEL_FILE_ID}/workbook/worksheets/${SHEET_NAME}/range(address='${SHEET_RANGE}')`;
         fetchMicrosoftGraph(url)
@@ -279,7 +280,7 @@
             console.error('Excel Data:', error);
         });
     };
-    function fetchCalendar(){
+    function fetchMyCalendar(){
         function formatearFecha(fechaUTC) {
             const fecha = new Date(fechaUTC);
             const opciones = { weekday: 'long', day: 'numeric', month: 'long' };
@@ -947,7 +948,7 @@
     checkAuth();
     retocaLayout();
     //fetchCalendar();
-    fetchExcelData();
+    fetchMyExcelData();
     desactivaAutocomplete();
     insertaBotonMiTampermonkey();
 
