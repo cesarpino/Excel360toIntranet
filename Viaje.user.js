@@ -77,19 +77,16 @@
                     break;
             }
         }
-        function getConfigURL(config_parameters) {
+        function getConfigURL(config_parameters,set_or_clear) {
             // takes config and store in local storage
             const baseURL=WEBAPP_URI;
             const config = {};
-            config[config_parameters.group_name]="set";
+            config[config_parameters.group_name]=set_or_clear;
             config_parameters.parameter_names.forEach(param_name => {
                 config[param_name] = GM_getValue(param_name, undefined);
             });
             const queryString = new URLSearchParams(config).toString();
             const url= `${baseURL}?${queryString}`;
-            console.log("getConfigURL",config, "url",url);
-            console.log("getConfigURL, cambia set por clear_all para borrar todos los parametros");
-
             return url;
         }
 
@@ -98,8 +95,11 @@
         const value=GM_getValue(param_name, undefined);
         // console.log("AuthParameter value",param_name, value);
         if (!value) {
-            const configURL=getConfigURL(param_set);
-            const error_text=`Falta el parametro de configuración ${param_name}, solicita al autor la url de autorizacion de la forma ${configURL}`;
+            const error_text=`Falta el parametro de configuración ${param_name}.\n`+
+                  "Solicita al autor la url de autorizacion de la forma \n"+
+                  getConfigURL(param_set,"set")+
+                  "\n o de la forma \n"+
+                  getConfigURL(param_set,"clear_all_and_set");
             console.error(error_text);
             alert(error_text);
         }
