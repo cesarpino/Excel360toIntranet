@@ -23,14 +23,13 @@
     const WEBAPP_URI = get_match_from_UserScript("http://");
     const REDIRECT_URI = get_match_from_UserScript("https://");
     if (this_page_url.startsWith(REDIRECT_URI)) {
-        // Se ejecuta solo en dominio en google.com para redirigir el token a viajes.cdti.es
-        let newUrl = `${WEBAPP_URI}${this_page_url.slice(REDIRECT_URI.length)}`;
-        alert("Redirige autorización a "+newUrl);
-        window.location.href = newUrl;
-        console.error("no debe pasar por aqui");
-        return;
+        // We are inside REDIRECT_URI, we force redirection to WEBAPP_URI with the token parameter recieved.
+        let back_to_webapp_uri = `${WEBAPP_URI}${this_page_url.slice(REDIRECT_URI.length)}`;
+        alert("Redirects authorization to \n"+back_to_webapp_uri);
+        stop_execution_and_jump_to(back_to_webapp_uri);
     }
 
+    // We are in now an WEBAPP_URI page, and want to get an access_token for accessing microsoft.
     const AUTH_WEBAPP_PARAMETERS={
         "group_name":"auth_webapp",
         "parameter_names":["TENANT_ID","CLIENT_ID"]
@@ -49,6 +48,10 @@
         .find(match => match.startsWith(http_or_https))
         ?.replace(/\*$/, ''); // le quito la estrella del final @match
         return config_uri;
+    }
+    function stop_execution_and_jump_to(newUrl){
+        window.location.href = newUrl;
+        throw new Error("Stop script after asking for redirection");
     }
     function getConfigFromSet(param_set, param_name) {
         function setConfigFromURL(config_parameters) {
@@ -102,8 +105,6 @@
         }
         return value;
     }
-
-    let accessToken = getConfig('accessToken', "");
     function getConfig(key, defaultValue) {
         let value = GM_getValue(key, undefined); // recupera clave, valor almacenada en browser
         if (value === undefined) { // Si no existe, la creamos
@@ -112,31 +113,34 @@
         }
         return value;
     }
-    function checkForTokenInURL() {
-        console.log("checkForTokenInURL");
-        console.log("called from",document.referrer);
-        const hash = window.location.hash.substring(1);
-        const params = new URLSearchParams(hash);
-        const token = params.get('access_token');
 
-        if (token) {
-            accessToken = token;
-            GM_setValue('accessToken', token); // Guardar el token para futuras solicitudes
-            // window.location.hash = ''; // Limpiar el hash de la URL
-            fetchCalendar();
-            fetchExcelData();
+    let accessToken = getAccessToken();
+    function getAccessToken(){
+        let token = getConfig('accessToken', "");
+        function checkForTokenInURL() {
+            console.log("checkForTokenInURL");
+            console.log("called from",document.referrer);
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            const token_in_url = params.get('access_token');
+
+            if (token_in_url) {
+                token = token_in_url;
+                GM_setValue('accessToken', token_in_url); // Guardar el token para futuras solicitudes
+            }
         }
+        checkForTokenInURL();
+        return token;
     }
     function invalidateToken(){
         accessToken=null;
         GM_setValue('accessToken', accessToken);
     }
-    function authenticate() {
-        // cambia de pagina para solicitar autorización, y aprovechar que el usuario está logado ya en microsoft.
-        window.location.href=AUTH_URL;
-        // GM_openInTab(authUrl, true);  para abrir la app de autenticación en otra pantalla
-    }
     function checkAuth() {
+        function authenticate() {
+            // redirects to AUTH_URL. This url will ask user for permission an then redirect to REDIRECT_URI configured in Azure
+            stop_execution_and_jump_to(AUTH_URL);
+        }
         console.log("checkAuth");
         if (!accessToken) {
             console.log("autentificar");
@@ -941,7 +945,6 @@
     }
 
     gestor_configuracion();
-    checkForTokenInURL();
     checkAuth();
     retocaLayout();
     //fetchCalendar();
