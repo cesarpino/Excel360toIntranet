@@ -19,6 +19,7 @@
 (function() {
     'use strict';
 
+    //***********
     // WEBAPP token purchase stuff
     const this_page_url = window.location.href;
     const WEBAPP_URI = get_match_from_UserScript("http://");
@@ -30,7 +31,7 @@
         stop_execution_and_jump_to(back_to_webapp_uri);
     }
 
-    // We are in now an WEBAPP_URI page, and want to get an access_token for accessing microsoft.
+    // We are in now an WEBAPP_URI page, and want to get an access_token to enable microsoft access.
     const AUTH_WEBAPP_PARAMETERS={
         "group_name":"auth_webapp",
         "parameter_names":["TENANT_ID","CLIENT_ID"]
@@ -43,6 +44,8 @@
     const AUTH_URL_BASE = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize`;
     const SCOPES = ['Files.Read', 'Files.Read.All', 'Calendars.Read', 'Mail.Read'].join(' ');
     const AUTH_URL = `${AUTH_URL_BASE}?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${REDIRECT_URI}&scope=${SCOPES}&response_mode=fragment`;
+    let accessToken = getAccessToken();
+    checkAuth();
 
     function get_match_from_UserScript(http_or_https) {
         let config_uri=GM_info.script.matches
@@ -114,41 +117,35 @@
         }
         return value;
     }
-
-    let accessToken = getAccessToken();
     function getAccessToken(){
-        let token = getConfig('accessToken', "");
         function checkForTokenInURL() {
-            console.log("checkForTokenInURL");
-            console.log("called from",document.referrer);
             const hash = window.location.hash.substring(1);
             const params = new URLSearchParams(hash);
-            const token_in_url = params.get('access_token');
-
-            if (token_in_url) {
-                token = token_in_url;
-                GM_setValue('accessToken', token_in_url); // Guardar el token para futuras solicitudes
-            }
+            return params.get('access_token');
         }
-        checkForTokenInURL();
-        return token;
+
+        const token_in_url = checkForTokenInURL();
+        const previous_token = getConfig('accessToken', "");
+
+        if (token_in_url) {
+            console.log("Token received in url, called from ",document.referrer); // REDIRECT_URI
+            GM_setValue('accessToken', token_in_url); // Guardar el token para futuras solicitudes
+            return token_in_url;
+        } else {
+            return previous_token;
+        }
+    }
+    function checkAuth() {
+        console.log("checkAuth");
+        if (!accessToken) {
+            // redirects to AUTH_URL where microsoft will ask user for permission and then redirect to REDIRECT_URI configured in Azure
+            stop_execution_and_jump_to(AUTH_URL);
+        }
+        console.log("autentificado! access token ", accessToken);
     }
     function invalidateToken(){
         accessToken=null;
         GM_setValue('accessToken', accessToken);
-    }
-    function checkAuth() {
-        function authenticate() {
-            // redirects to AUTH_URL. This url will ask user for permission an then redirect to REDIRECT_URI configured in Azure
-            stop_execution_and_jump_to(AUTH_URL);
-        }
-        console.log("checkAuth");
-        if (!accessToken) {
-            console.log("autentificar");
-            authenticate();
-            console.error("no debe pasar por aqui");
-        }
-        console.log("autentificado! access token ", accessToken);
     }
     function fetchMicrosoftGraph(url) {
         console.log("fetchMicrosoftGraph",url);
@@ -233,6 +230,7 @@
         });
     };
 
+    //***********
     // WEBAPP specific once token obtained.
     const EXCEL_PARAMETERS={
         "group_name":"excel_config",
@@ -945,7 +943,6 @@
     }
 
     gestor_configuracion();
-    checkAuth();
     retocaLayout();
     //fetchCalendar();
     fetchMyExcelData();
