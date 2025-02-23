@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Viaje con Excel
 // @namespace    http://tampermonkey.net/
-// @version      0.2.0
+// @version      0.2.0.1
 // @description  Rellena viajes a partir el contenido de un excel compartido para usuarios autorizados.
 // @author       César del Pino
 // @match        http://viajes.cdti.es/*
@@ -12,13 +12,16 @@
 // @grant        GM_setValue
 // @grant        GM_addStyle
 // @grant        GM_deleteValue
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=cdti.es
+// @require      https://code.jquery.com/jquery-3.6.0.min.js
 // @require      https://cdn.jsdelivr.net/gh/cesarpino/Excel360toIntranet@main/Http-Oauth2-authorize.js
 // @updateURL    https://cdn.jsdelivr.net/gh/cesarpino/Excel360toIntranet@main/Viaje.user.js
 // @downloadURL  https://cdn.jsdelivr.net/gh/cesarpino/Excel360toIntranet@main/Viaje.user.js
 // ==/UserScript==
 
 (function() {
-    // Http-Oauth2-authorize.js ensures we can call fetchMicrosoftGraph a valid authorization token.
+    // Http-Oauth2-authorize.js ensures we can call fetchMicrosoftGraph with a valid authorization token.
+    console.log("algo **********");
 
     //***********
     // WEBAPP specific once token obtained.
